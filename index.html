@@ -1,0 +1,149 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1"/>
+  <title>Rsdpugeij Chatbot AI</title>
+  <meta name="description" content="Rsdpugeij Chatbot — Chat, Deep Research, Unlimited Images, Camera, and Auth."/>
+  <link rel="stylesheet" href="./style.css"/>
+  <script src="https://www.gstatic.com/firebasejs/10.12.3/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.3/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.3/firebase-firestore-compat.js"></script>
+</head>
+<body>
+  <div id="keyOverlay" class="overlay hidden">
+    <div class="keybox">
+      <h2>Enter your OpenRouter API key</h2>
+      <p class="muted">Stored only on this device (localStorage). Format: <code>sk-or-v1...</code></p>
+      <input id="keyInput" class="keyinput" placeholder="sk-or-v1..." autocomplete="off"/>
+      <div class="row end"><button id="saveKey" class="primary">Save Key</button></div>
+    </div>
+  </div>
+
+  <div id="settingsOverlay" class="overlay hidden">
+    <div class="settingsbox">
+      <div class="settingshead">
+        <h2>Settings</h2><button id="closeSettings" class="small">✕</button>
+      </div>
+      <div class="settingscontent">
+        <label class="row spread">Default Model
+          <select id="defaultModel">
+            <option value="openrouter/auto">openrouter/auto</option>
+            <option value="openai/gpt-3.5-turbo">openai/gpt-3.5-turbo</option>
+            <option value="openai/gpt-4o">openai/gpt-4o</option>
+            <option value="openai/gpt-4.1">openai/gpt-4.1</option>
+            <option value="openai/gpt-5">openai/gpt-5</option>
+            <option value="anthropic/claude-3-haiku">claude-3-haiku</option>
+            <option value="google/gemini-pro-1.5">gemini-pro-1.5</option>
+          </select>
+        </label>
+        <label class="row spread">Auto-save chat history<input type="checkbox" id="autosaveToggle" checked/></label>
+        <label class="row spread">Theme
+          <select id="themeSelect"><option value="gray">Gray</option><option value="dark">Dark</option><option value="light">Light</option></select>
+        </label>
+        <div class="hr"></div>
+        <h3>Image Providers</h3>
+        <label class="row spread">Use Free Image Mode (no key)<input type="checkbox" id="freeImgToggle" checked/></label>
+        <label class="row spread">Enable Stability (with key)<input type="checkbox" id="stabilityToggle"/></label>
+        <input id="stabilityKey" class="keyinput" placeholder="Stability API key (optional)"/>
+        <div class="hr"></div>
+        <h3>Firebase (pre-wired)</h3>
+        <textarea id="firebaseConfig" class="editor" readonly>{}</textarea>
+        <div class="hr"></div>
+        <div class="row gap">
+          <button id="changeKeyInSettings" class="small">Change OpenRouter Key</button>
+          <button id="exportChats" class="small">Export Chats (.json)</button>
+          <label class="small btnlike">Import Chats (.json)<input id="importChats" type="file" accept="application/json" style="display:none"/></label>
+        </div>
+      </div>
+      <div class="settingsfoot row end gap"><button id="saveSettings" class="primary">Save</button></div>
+    </div>
+  </div>
+
+  <!-- Auth Modal -->
+  <div id="authOverlay" class="overlay hidden">
+    <div class="authbox">
+      <div class="tabs">
+        <button id="tabLogin" class="tab active">Login</button>
+        <button id="tabSignup" class="tab">Sign up</button>
+        <button id="tabForgot" class="tab">Forgot password</button>
+      </div>
+      <div id="loginPane" class="pane">
+        <h2>Login</h2>
+        <label>Email address / Username<input id="loginId"/></label>
+        <label>Password<input id="loginPass" type="password"/></label>
+        <div class="row spread"><button id="toForgot" class="linklike">Forgot password?</button><button id="loginBtn" class="primary">Login</button></div>
+        <div id="loginErr" class="err"></div>
+        <div class="swap">Need account? <button id="toSignup" class="linklike">Create account</button></div>
+        <div class="hr"></div>
+        <div class="row end"><button id="googleBtn" class="small">Continue with Google</button></div>
+      </div>
+      <div id="signupPane" class="pane hidden">
+        <h2>Create account</h2>
+        <label>Username<input id="suUser" placeholder="a–z, 0–9, _ ."/></label>
+        <label>Email address<input id="suEmail"/></label>
+        <label>Password<input id="suPass" type="password" placeholder="min 8 chars"/></label>
+        <div class="row end"><button id="signupBtn" class="primary">Create account</button></div>
+        <div id="signupErr" class="err"></div>
+        <div class="swap">Already have account? <button id="toLogin" class="linklike">Login your account</button></div>
+      </div>
+      <div id="forgotPane" class="pane hidden">
+        <h2>Reset password</h2>
+        <label>Email address<input id="fpEmail"/></label>
+        <div class="row end"><button id="forgotBtn" class="primary">Send reset link</button></div>
+        <div id="forgotInfo" class="info">We’ll email a reset link. Open it to set a new password.</div>
+        <div id="forgotErr" class="err"></div>
+        <div class="swap">Remembered? <button id="backToLogin" class="linklike">Login</button></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="layout">
+    <aside class="sidebar">
+      <div class="brand">Rsdpugeij</div>
+      <button id="newSession">+ New Chat</button>
+      <ul id="sessions"></ul>
+      <div class="foot">
+        <button id="clearHistory" class="small danger">🗑 Clear History</button>
+        <button id="changeKeyBtn" class="small">Change API Key</button>
+        <button id="openSettings" class="small">⚙️ Settings</button>
+      </div>
+    </aside>
+
+    <main class="main">
+      <header class="top">
+        <h1 id="title">New chat</h1>
+        <div class="row">
+          <div id="userBadge" class="userBadge hidden">
+            <img id="userPhoto" alt="user"/>
+            <span id="userName"></span>
+          </div>
+          <button id="logoutBtn" class="small hidden">Log out</button>
+        </div>
+        <label class="modelbox">Model
+          <select id="model">
+            <option value="openrouter/auto" selected>openrouter/auto</option>
+            <option value="openai/gpt-3.5-turbo">openai/gpt-3.5-turbo</option>
+            <option value="openai/gpt-4o">openai/gpt-4o</option>
+            <option value="openai/gpt-4.1">openai/gpt-4.1</option>
+            <option value="openai/gpt-5">openai/gpt-5</option>
+            <option value="anthropic/claude-3-haiku">claude-3-haiku</option>
+            <option value="google/gemini-pro-1.5">gemini-pro-1.5</option>
+          </select>
+        </label>
+      </header>
+
+      <div id="msgs" class="msgs"></div>
+
+      <form id="composer" class="composer">
+        <input id="input" placeholder="Type a message…" autocomplete="off"/>
+        <button type="submit">Send</button>
+      </form>
+    </main>
+  </div>
+  <div id="toast" class="toast hidden">Copied!</div>
+  <script>window.__EMBEDDED_FIREBASE_CONFIG__ = {"apiKey": "AIzaSyCC9IgGKPNzv6b1arWKYyCcPL75xRo2U8Q", "authDomain": "rsdpugeij-chatbot.firebaseapp.com", "projectId": "rsdpugeij-chatbot", "storageBucket": "rsdpugeij-chatbot.appspot.com", "messagingSenderId": "577433493787", "appId": "1:577433493787:web:f9baa5552f8ce7cb14b3be", "measurementId": "G-NR4DS7K7MD"};</script>
+  <script src="./style.js"></script>
+  <script src="./app.js"></script>
+</body>
+</html>
